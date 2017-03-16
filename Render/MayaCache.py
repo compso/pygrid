@@ -5,9 +5,9 @@
 
 '''
 
-from gridengine import Job,JobType,mkfolder,Queue
-from gridengine.Exceptions import *
-from gridengine.Utils import copyFile
+from . import Job,JobType,mkfolder,Queue
+from ..Exceptions import *
+from ..Utils import copyFile
 
 import MayaBatch
 

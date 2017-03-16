@@ -39,7 +39,7 @@
 	 render_maya -- do the render
 
 ''' 
-from gridengine.Job import Job,JobType
+from ..Job import Job,JobType
 
 class mayaHWJob(Job):
 	''' 3delight instance of gridengine submitting class '''

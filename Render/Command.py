@@ -35,8 +35,8 @@
     Main generic command class
 
 ''' 
-from gridengine.Job import Job,JobType,mkfolder
-from gridengine.Queue import Queue
+from ..Job import Job,JobType,mkfolder
+from ..Queue import Queue
 
 import os as _os 
 
@@ -149,7 +149,7 @@ eval this_task
         if self.paused:
             exe+=" -h "
             
-        args={'email':'-m a -M %s@blue-bolt.com' % self._os.getenv('USER'),
+        args={'email':'-m a -M %s@lipsyncpost.co.uk' % self._os.getenv('USER'),
         'jobname':self.name,
         'wd':self.wd,
         'render_script':self.scripts['render_script']['script'].name,

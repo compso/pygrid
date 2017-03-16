@@ -37,10 +37,10 @@
 
 
 
-from gridengine.Job import Job
-from gridengine.Job import mkfolder
-from gridengine.Queue import Queue
-from gridengine.Exceptions import *
+from ..Job import Job
+from ..Job import mkfolder
+from ..Queue import Queue
+from ..Exceptions import *
 
 from Command import CommandJob
 

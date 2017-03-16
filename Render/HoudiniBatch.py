@@ -38,8 +38,8 @@ Author:Ashley Retallack - ashley-r@blue-bolt.com
 ################### 
 
 
-from gridengine.Job import Job,JobType
-from gridengine.Job import mkfolder
+from ..Job import Job,JobType
+from ..Job import mkfolder
 
 import os , shutil
 import datetime

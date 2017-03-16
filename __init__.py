@@ -77,7 +77,7 @@ from Utils import *
 from User import *
 from Database import *
 from config_gridengine import *
-from sql_gridengine import *
+# from sql_gridengine import *
 
 # __all__ = ['Job','Task','Host','Queue','Render','Utils']
 

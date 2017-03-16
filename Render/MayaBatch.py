@@ -39,9 +39,9 @@
 
 '''
 
-from gridengine.Job import Job,JobType,mkfolder
-from gridengine.Queue import Queue
-from gridengine.Utils import copyFile
+from ..Job import Job,JobType,mkfolder
+from ..Queue import Queue
+from ..Utils import copyFile
 
 import os as _os
 

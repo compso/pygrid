@@ -39,8 +39,8 @@
 	 render_mr -- do the render
 
 ''' 
-from gridengine.Job import Job,JobType
-from gridengine.Job import mkfolder
+from ..Job import Job,JobType
+from ..Job import mkfolder
 import os , shutil
 import datetime
 
