@@ -265,3 +265,63 @@ def copyFile(src,des):
     else:
         return None
 
+
+class StackEmpty(Exception):
+    pass
+
+
+class Stack(object):
+    '''simple class implementing a stack
+    
+    >>> import ftypes
+    >>> s = ftypes.Stack()
+    >>> s.push(5)
+    >>> s.push('something')
+    >>> s.push(['i', 'am', 'a', 'list'])
+    >>> print s
+    5
+    something
+    ['i', 'am', 'a', 'list']
+    >>> s.pop()
+    ['i', 'am', 'a', 'list']
+    >>> s.pop()
+    'something'
+    >>>
+    >>> try:
+    ...     ftypes.Stack().pop()
+    ... except ftypes.StackEmpty:
+    ...     print 'stack is empty'
+    ...
+    stack is empty
+    >>>
+    
+    '''
+    def __init__(self):
+        self.__stack = []
+    
+    def push(self, item):
+        '''put element on stack'''
+        self.__stack.append(item)
+    
+    def pop(self):
+        '''return last element and remove it from stack'''
+        try:
+            return self.__stack.pop()
+        except IndexError:
+            raise StackEmpty
+    
+    def getLast(self):
+        '''return last element and keep it in stack'''
+        return self.__stack[-1]
+    
+    def __str__(self):
+        return '\n'.join([str(x) for x in self.__stack])
+
+
+class DefaultDict(dict):
+    '''dictionary that returns a default value if asked for a nonexistent key'''
+    def __init__(self, default=None):
+        self.default = default
+
+    def __getitem__(self, name):
+        return self.get(name, self.default)

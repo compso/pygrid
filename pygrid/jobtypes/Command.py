@@ -25,7 +25,7 @@
 #    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 #    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#    
+# 
 #    Author:Ashley Retallack - ashley-r@blue-bolt.com
 #    Created:2011-06-07
 #    Version:0.9.2
@@ -34,34 +34,41 @@
 '''
     Main generic command class
 
-''' 
-from ..Job import Job,JobType,mkfolder
+'''
+from ..Job import Job, JobType, mkfolder
 from ..Queue import Queue
 
-import os as _os 
+import os as _os
+
 
 class CommandJob(Job):
-    ''' default command job instance of gridengine submitting Job class '''
-    def __init__(self,jid=None):
+    ''' default command job instance of gridengine submitting Job class
+        creates a bash script with points of entry.
+
+        Attributes:
+            prescript           Any bash functions to be run at the start of the script
+            postscript          Any bash functions to be run at the end of the script
+            cmd                 the main command this job is going to run (DEFAULT : ls -l /)
+
+        Rest are inherited from base Job class
+    '''
+    def __init__(self, jid=None):
         super(CommandJob, self).__init__(jid)
         self.name = 'command_job'
         self.type = JobType.SINGLE
         self.label = 'cmd'
-        self.queue = Queue('all.q')        
-        self.prescript = "" #: any commands or functions than want to be run at the start of the script        
-        self.postscript = "" #: any commands or functions than want to be run at the end of the script
-        
-        #command args 
-        self.cmd='ls -l /'
+        self.queue = Queue('all.q')
+        self.prescript = ""
+        self.postscript = ""
+        self.cmd = 'ls -l /'
     
     def setJobName(self):
         '''
             Set the name of the job based on SHOT, daily Version and datetime stamp
         '''
         dt = self.dt.strftime('%Y%m%d%H%M%S')
-        self.name='cmd.%s.%s' % (self.cmd.split()[0],dt)
+        self.name = 'cmd.%s.%s' % (self.cmd.split()[0], dt)
     
-        
     def createJobScript(self):
         '''
             Generate the job script for this submission to grid
@@ -69,15 +76,24 @@ class CommandJob(Job):
         
         envs = ""
         
-        for e,v in self.envs.items():
-            envs += "export %s=%s;echo %s=${%s};\n" % (e,v,e,e)
+        for e, v in self.envs.items():
+            e_d = {'key': e, 'val': v}
+            envs += "export {key}={val};echo {key}=${{{val}}};\n".format(**e_d)
         
-        settings={'cmd':self.cmd,'envs':envs,'prescript':self.prescript,'postscript':self.postscript,'host_ip':self.submit_host,'host_port':self.portid}
+        settings = {'cmd': self.cmd,
+                    'envs': envs,
+                    'prescript': self.prescript,
+                    'postscript': self.postscript,
+                    'host_ip': self.submit_host,
+                    'host_port': self.portid}
 
         if not _os.path.isdir(self.paths['scripts_path']):
             mkfolder(self.paths['scripts_path'])
-    
-        f = open(self.paths['scripts_path']+"/"+self.label + ".%s"%self.dt.strftime('%Y%m%d%H%M%S') +".sh", 'w')
+
+        sub_script = _os.path.join(self.paths['scripts_path'],
+                                   '{}.{}.sh'.format(self.label, self.dt.strftime('%Y%m%d%H%M%S')))
+
+        f = open(sub_script, 'w')
         
         f.write('''#!/bin/bash
 #$ -S /bin/bash
@@ -119,10 +135,9 @@ eval this_task
 
 ''' % (settings))
     
-    
         f.close()
 
-        self.scripts['cmd_script'] = {'script':f.name,'type':1,'name':'cmd'}
+        self.scripts['cmd_script'] = {'script': f.name, 'type': 1, 'name': 'cmd'}
         
         self.script = f.name
         

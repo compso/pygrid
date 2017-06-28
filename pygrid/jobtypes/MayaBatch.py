@@ -168,7 +168,7 @@ source ${SOFTWARE}/bluebolt/config/workspace.env
 
 eval workspace -no-hi %(WORKSPACE_PATH)s
 
-export MAYA_APP_DIR=${TMPDIR}/maya;
+export MAYA_APP_DIR=${TMPDIR}/maya/${USER};
 export MAYA_VERSION=%(maya)s;
 export MAYA_MAJOR_VERSION=%(maya)s;
 export MAYA_LOCATION=$SOFTWARE/maya/$UNAME.$DIST.$ARCH/%(maya)s;

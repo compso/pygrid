@@ -155,33 +155,46 @@ class Job(object):
         #: dictionary of environments to apply to this job,
         #: format: {'VARIABLE':'VALUE'}
         self.envs = {}
-        self.paths = {'log_path':'','scripts_path':''} #: paths that this job needs to know
-        self.extra_data = {} #: any extra data that will be saved to the database
+        #: paths that this job needs to know
+        self.paths = {'log_path': '', 'scripts_path': ''}
+        #: any extra data that will be saved to the database
+        self.extra_data = {}
         
         # old lecacy features
         
         self.start = 0
-        self.end = 0        
-        self.scripts={} 
+        self.end = 0
+        self.scripts = {}
         self.jobnames = list()
-        self.dependency = None #: will be added to the dependecy_list (below) if not None
+        #: will be added to the dependecy_list (below) if not None
+        self.dependency = None
         
-        # v1.0.* features 
+        # v1.0.* features
+
+        #: list of task objects
+        self.tasks = []
+        #: if this is a sub task relate the parent here
+        self.parent = None
+        #: list child job objects
+        self.children = []
+        #: jobs that this job depends on
+        self.dependency_list = []
+        #: hosts to send this job to , returns a list of Host objects
+        self.hosts = []
+        #: returns true if this job has been submitted
+        self.is_submitted = False
+        #: drmaa session id for this job submission
+        self.sessionid = None
+        # default port for messenger (for sending updates and messages to the submitter)
+        self.portid = 8850
+        # the hosts that is submitting this job
+        self.submit_host = socket.gethostbyname(socket.gethostname())
+        #: Set the project that this job and it's tasks should be attached to
+        self.project = None
+        #: workspace for this job to output it's working files and logs
+        self.ws = ''
         
-        self.tasks = [] #: list of task objects        
-        self.parent = None #: if this is a sub task relate the parent here
-        self.children = [] #: list child job objects 
-        self.dependency_list = [] #: jobs that this job depends on
-        self.hosts = [] #: hosts to send this job to , returns a list of Host objects
-        self.is_submitted = False #: returns true if this job has been submitted
-        self.sessionid = None #: drmaa session id for this job submission
-        self.portid = 8850 # default port for messenger (for sending updates and messages to the submitter)
-        self.submit_host = socket.gethostbyname(socket.gethostname()) # the hosts that is submitting this job
-        self.project = None #: Set the project that this job and it's tasks should be attached to
-        
-        self.ws = '' #: workspace for this job to output it's working files and logs
-        
-        if _os.environ.has_key('WORKSPACE_PATH') and _os.environ['WORKSPACE_PATH']:
+        if 'WORKSPACE_PATH' in _os.environ:
             self.ws = _os.environ['WORKSPACE_PATH']
         
         # setup environment defaults
@@ -198,41 +211,52 @@ class Job(object):
     # Properties
     def cpus():
         doc = "Number of threads to use to render this changed the slots value of any parallel environments"
+
         def fget(self):
             return self.pe.slots
+
         def fset(self, value):
             self.pe.slots = value
+
         return locals()
     cpus = property(**cpus())
 
     def user():
-        doc = "Number of threads to use to render this changed the slots value of any parallel environments"
+        doc = "User this job will belong to"
+
         def fget(self):
             return self._user
+
         def fset(self, value):
-            if isinstance(value,User):
+            if isinstance(value, User):
                 self._user = value
             else:
                 self._user = User(value)
+
         return locals()
     user = property(**user())
 
     def queue():
-        doc = "Number of threads to use to render this changed the slots value of any parallel environments"
+        doc = "The queue or queue instance this job will be submitted to"
+
         def fget(self):
             return self._queue
+
         def fset(self, value):
-            if isinstance(value,Queue):
+            if isinstance(value, Queue):
                 self._queue = value
             else:
                 self._queue = Queue(value)
+
         return locals()
     queue = property(**queue())
 
     def name():
-        doc = "The name property. is set will try and get the job from database and fill in jid etc"
+        doc = "The name of the job as it appears in gridengine"
+
         def fget(self):
             return self._name
+
         def fset(self, value):
             self._name = value
 
@@ -242,39 +266,31 @@ class Job(object):
     # TODO detect if jid is valid
     def jid():
         doc = "The jid property."
+        doc += "If set will populate the job with known information from gridengine"
+
         def fget(self):
             return self._jid
+
         def fset(self, value):
             self._jid = value
+
         return locals()
     jid = property(**jid())
 
     @classmethod
-    def fillData(self,jid):
+    def fillData(self, jid):
         '''TODO given the grid job id gather and fill this instance with the details relevent to control 
         a finished or running job and it's tasks 
         '''
         
         # check that we are given an int to look-up
 
-        if jid == None or not isinstance(jid,int):
-            return
+        if jid is None or not isinstance(jid, int):
+            raise TypeError("filldata expected an integer, recieved type {}".format(type(jid)))
 
-        # given the jid find this job in the database
-
-        session=_sql_ge.alchemy_connect()
-                
-        # find the table that has this job in it
-        table_exists=False
-        shows = session.execute('''SHOW TABLES''')
-        data = {}
-        for (table_name,) in shows:
-            if table_name.startswith('SHOW_'):
-                result = session.execute( '''SELECT * FROM %s WHERE id=%d'''%(table_name,self.jid) )
-                if int(result.rowcount) == 1:
-                    table_exists=True
-                    data = dict(zip(result.keys(),result.fetchall()[0]))
-
+        # get the session id for this job
+        # session = 
+    
         for key,value in data.items():
             if isinstance(value,str) and len(value) and value[0] in ['{','[']:
                 value=eval(value)
@@ -295,9 +311,8 @@ class Job(object):
         for jid in self.jobids:
             self.tasks.append(Task(jid))
 
-        
         return jid
-    
+
     def setCPUs(self,cpus):
         ''' set the numeber of cpus to use in the jobs parallel environment '''
                      
@@ -305,7 +320,10 @@ class Job(object):
     
     def submit(self,output='',test=False,rerun=False):
         ''' Main Submitter, loop over child job and runn thier submit commands in order of dependency '''
-        
+         
+        if not rerun and self.is_submitted:
+            return self.jobids
+
         print '-'*50
         print 'Submiting : ', self.label
         print 'PyGrid Version : ', pygrid_version
@@ -511,6 +529,9 @@ class Job(object):
                     if self.paused:
                         jt.nativeSpecification += ' -h '
 
+                    if self.project:
+                        jt.nativeSpecification += ' -P %s'%self.project
+
                     # Run this job
                     this_jid=s.runBulkJobs(jt,j_start,j_end,j_step)
                     
@@ -537,6 +558,18 @@ class Job(object):
                 jt.jobName = '%s.%s' % (self.label,self.name)
                 jt.nativeSpecification = ' -S /bin/bash -q %s -w n -shell yes -b no ' % self.queue.name
                 jt.nativeSpecification += ' -pe %s %s' % (self.pe.name,cpu_str)
+                jt.nativeSpecification += ' -l r_cpu=1'
+
+                if self.resources.has_key('hard') and len(self.resources['hard']):
+                    jt.nativeSpecification += ' -hard'
+                    for res in self.resources['hard']:
+                        jt.nativeSpecification += ' -l %s=%r'%res
+
+                if self.resources.has_key('soft') and len(self.resources['soft']):
+                    jt.nativeSpecification += ' -soft'
+                    for res in self.resources['soft']:
+                        jt.nativeSpecification += ' -l %s=%r'%res      
+
                 if self.options:
                     jt.nativeSpecification += self.options
                 
@@ -555,13 +588,13 @@ class Job(object):
                     envs_str = ','.join(envs_list)
 
                     jt.nativeSpecification += ' -v %s' % envs_str
-
                     
                 if self.paused:
                     jt.nativeSpecification += ' -h '
 
-                # if self.project:
-                #     jt.nativeSpecification += ' -P %s'%self.project
+                if self.project:
+                    # add the project if it doesn't exist
+                    jt.nativeSpecification += ' -P %s'%self.project
                 # print "jt.jobEnvironment %r" % jt.jobEnvironment
                 # print "jt.nativeSpecification %r" % jt.nativeSpecification
 
@@ -631,8 +664,8 @@ echo %s;
             if self.paused:
                 root_jt.nativeSpecification += ' -h '
 
-            # if self.project:
-            #     root_jt.nativeSpecification += ' -P %s'%self.project
+            if self.project:
+                root_jt.nativeSpecification += ' -P %s'%self.project
 
             root_jid=s.runJob(root_jt)
 
