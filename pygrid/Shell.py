@@ -4,6 +4,8 @@ import sys
 import os
 import logging
 import xml.parsers.expat
+import xml.etree.ElementTree as ET
+from copy import copy, deepcopy
 
 from .Utils import Stack, DefaultDict
 
@@ -281,8 +283,105 @@ class QHostCommand(AbstractCommand):
         pass
 
 
+def qstatus(stat_id):
+
+    return stat_id
+
+
+class QXmlStackManager(object):
+
+    def __init__(self, object_name, out_object):
+
+        self.attr_map = {}
+
+        self._stack = Stack()
+        self._object_name = object_name
+        self._out_object = out_object
+        self._out_list = []
+
+        # self._parser = xml.parsers.expat.ParserCreate()
+
+        # self._parser.StartElementHandler = self.start_element
+        # self._parser.EndElementHandler = self.end_element
+        # self._parser.CharacterDataHandler = self.char_data
+
+        self.__current_obj = DefaultDict(None)
+
+    def parse(self, data):
+
+        root = ET.fromstring(data)
+        # self._parser.Parse(data)
+
+        # root = tree.getroot()
+        e_list = []
+        for e in root.iter(self._object_name):
+            e_list.append(e)
+
+            _o_list = self.populate_data(e, self.attr_map)
+            for o in _o_list:
+                sj = self._out_object(o)
+                self._out_list.append(sj)
+
+        return self._out_list
+
+    def populate_data(self, element, attr_map):
+
+        __current_obj = DefaultDict(None)
+        _out_list = []
+        for e in element.iter():
+
+            tag = e.tag
+            attr = e.attrib
+            data = e.text
+
+            if tag in attr_map:
+                tag_map = attr_map[tag]
+                d_name = tag_map.get('name')
+                d_type = tag_map.get('type')
+                if d_name in __current_obj:
+                    _out_list.append(__current_obj.copy())
+                    __current_obj.clear()
+                if d_name and tag_map.get('use_data', True):
+                    if d_type is not list and d_type not in ['raw', 'raw_list']:
+                        __current_obj[d_name] = d_type(data)
+                    elif d_type is list:
+                        if d_name not in __current_obj:
+                            __current_obj[d_name] = []
+                    elif d_type is 'raw':
+                        __current_obj[d_name] = {}
+                        for c in e.iter():
+                            if c.tag in tag_map.get('children', {}):
+                                c_dict = tag_map['children'][c.tag]
+                                c_name = c_dict['name']
+                                c_type = c_dict['type']
+
+                                __current_obj[d_name][c_name] = c_type(c.text)
+                    elif d_type is 'raw_list':
+                        __current_obj[d_name] = []
+                        result = self.populate_data(e, tag_map.get('children', {}))
+                        if len(result):
+                            __current_obj[d_name] += result
+
+                if 'attrs' in tag_map:
+                    d_attrs = tag_map['attrs']
+                    for a, d in d_attrs.items():
+                        if a in attr:
+                            a_name = d.get('name')
+                            a_type = d.get('type')
+                            __current_obj[a_name] = a_type(attr[a])
+        _out_list.append(__current_obj.copy())
+
+        return _out_list
+
+
 class QStatJob(dict):
     '''data structure to hold SGE job information'''
+    def __str__(self):
+        return ''.join(['{}: {}\n'.format(x, y) for x, y in self.items()])
+
+
+class QStatJobInfo(dict):
+
     def __str__(self):
         return ''.join(['{}: {}\n'.format(x, y) for x, y in self.items()])
     
@@ -295,56 +394,74 @@ class QStatCommand(AbstractCommand):
         self.args = ['-r', '-xml']
         self.args += args
 
-        self._stack = Stack()
-        self._jobs = []
-        self._curr_job = DefaultDict(None)
-
-    def start_element(self, name, attrs):
-        self._stack.push((name, attrs))
-        
-    def end_element(self, name):
-        if name == 'job_list':
-            self._jobs.append(QStatJob(self._curr_job))
-            self._curr_job.clear()
-        self._stack.pop()
-
-    def char_data(self, data):
-        tag, attr = self._stack.getLast()
-        if tag == 'job_list':
-            self._curr_job['state'] = attr['state']
-        if tag == 'state':
-            self._curr_job['flags'] = data
-        if tag == 'JB_job_number':
-            self._curr_job['jobnumber'] = data
-        if tag == 'JB_name':
-            self._curr_job['name'] = data
-        if tag == 'JB_owner':
-            self._curr_job['owner'] = data
-        if tag == 'tasks':
-            self._curr_job['tasks'] = data
-        if tag == 'hard_request':
-            if 'hard_request' not in self._curr_job:
-                self._curr_job['hard_request'] = {}
-            self._curr_job['hard_request'][attr['name']] = data
-        if tag == 'hard_request':
-            if 'hard_request' not in self._curr_job:
-                self._curr_job['hard_request'] = {}
-            self._curr_job['hard_request'][attr['name']] = data
+        self._job_stack = QXmlStackManager('job_list', QStatJob)
+        self._job_stack.attr_map = {'job_list': {'attrs': {'state': {'name': 'state', 'type': str}}},
+                                    'state': {'name': 'flags', 'type': str},
+                                    'JB_job_number': {'name': 'jobid', 'type': int},
+                                    'JB_name': {'name': 'name', 'type': str},
+                                    'JB_owner': {'name': 'owner', 'type': str},
+                                    'tasks': {'name': 'tasks', 'type': str},
+                                    'queue_name': {'name': 'running_queue', 'type': str},
+                                    'hard_req_queue': {'name': 'requested_queue', 'type': str},
+                                    'ad_predecessor_jobs_req': {'name': 'dependencies', 'type': list}
+                                    }
+        self._job_info_stack = QXmlStackManager('djob_info', QStatJobInfo)
+        self._job_info_stack.attr_map = {'JB_merge_stderr': {'name': 'merge_err', 'type': bool},
+                                         'JB_job_number': {'name': 'jobid', 'type': int},
+                                         'JB_script_file': {'name': 'script_file', 'type': str},
+                                         'JB_name': {'name': 'name', 'type': str},
+                                         'JB_owner': {'name': 'owner', 'type': str},
+                                         'JB_cwd': {'name': 'owner', 'type': str},
+                                         'JB_pe': {'name': 'pe', 'type': str},
+                                         'JB_pe_range': {'name': 'pe_range', 'type': 'raw',
+                                                         'children': {'RN_min': {'name': 'min', 'type': int},
+                                                                      'RN_max': {'name': 'max', 'type': int},
+                                                                      'RN_step': {'name': 'step', 'type': int}}},
+                                         'task_id_range': {'name': 'task_range', 'type': 'raw',
+                                                         'children': {'RN_min': {'name': 'min', 'type': int},
+                                                                      'RN_max': {'name': 'max', 'type': int},
+                                                                      'RN_step': {'name': 'step', 'type': int}}},
+                                         'JB_stdout_path_list': {'name': 'out_log_paths', 'type': 'raw_list',
+                                                         'children': {'PN_path': {'name': 'path', 'type': str}}},
+                                         'JB_stderr_path_list': {'name': 'err_log_paths', 'type': 'raw_list',
+                                                         'children': {'PN_path': {'name': 'path', 'type': str}}},
+                                         'JB_shell_list': {'name': 'shell', 'type': 'raw_list',
+                                                         'children': {'PN_path': {'name': 'path', 'type': str}}},
+                                         # 'JB_env_list': {'name': 'envs', 'type': 'raw_list',
+                                         #                 'children': {'VA_variable': {'name': 'key', 'type': str},
+                                         #                              'VA_value': {'name': 'value', 'type': str}}},
+                                         'JB_jid_predecessor_list': {'name': 'predecessors', 'type': 'raw_list',
+                                                         'children': {'JRE_job_number': {'name': 'id', 'type': int}}},
+                                         'JB_jid_successor_list': {'name': 'successors', 'type': 'raw_list',
+                                                         'children': {'JRE_job_number': {'name': 'id', 'type': int}}},
+                                         'JB_hard_queue_list': {'name': 'requested_queues', 'type': 'raw_list',
+                                                         'children': {'QR_name': {'name': 'name', 'type': str}}},
+                                         'JB_ja_tasks': {'name': 'array_tasks', 'type': 'raw_list',
+                                                         'children': {'JAT_status': {'name': 'status', 'type': int},
+                                                                      'JAT_task_number': {'name': 'task_id', 'type': int},
+                                                                      'JAT_scaled_usage_list': {'name': 'usage', 'type': 'raw_list',
+                                                                            'children': {'UA_name': {'name': 'name', 'type': str},
+                                                                                         'UA_value': {'name': 'value', 'type': float}}}
+                                                         }}
+                                        }
 
     def listJobs(self, args=[], **kwargs):
-        cmd_args = self.args
+        cmd_args = copy(self.args)
         for a in args:
             cmd_args.append(a)
         self.run(cmd_args)
 
-        p = xml.parsers.expat.ParserCreate()
-        p.StartElementHandler = self.start_element
-        p.EndElementHandler = self.end_element
-        p.CharacterDataHandler = self.char_data
+        return self._job_stack.parse(self.out)
 
-        p.Parse(self.out)
+    def getJobInfo(self, jobid):
+        cmd_args = copy(self.args)
+        cmd_args += ['-j', str(jobid)]
+        self.run(cmd_args)
 
-        return self._jobs
+        # sanitise the xml so no tags have spaces
+        out = self.out.replace('mail list', 'mail_list')
+
+        return self._job_info_stack.parse(out)
 
     def function(self):
         pass
