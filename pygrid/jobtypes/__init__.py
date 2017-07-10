@@ -38,5 +38,8 @@ import MayaBatch
 import Arnold
 import Nuke
 
-__all__ = ["Command","MayaRender","MayaBatch","Arnold","Nuke"] 
-
+__all__ = ["Command",
+           "MayaRender",
+           "MayaBatch",
+           "Arnold",
+           "Nuke"]

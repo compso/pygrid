@@ -2,3 +2,6 @@
 *.pyc
 *.ini
 *.sublime*
+dist/
+pygrid.egg-info
+build/

@@ -39,11 +39,11 @@
      render_mr -- do the render
 
 ''' 
-from gridengine.Job import Job,JobType
-from gridengine.Job import mkfolder
-from gridengine.Queue import Queue
-from gridengine.Utils import copyFile
-from gridengine.Exceptions import *
+from ..Job import Job,JobType
+from ..Job import mkfolder
+from ..Queue import Queue
+from ..Utils import copyFile
+from ..Exceptions import *
 import os , shutil
 import datetime
 

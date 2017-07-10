@@ -1,5 +1,5 @@
 
-#    (c)2011 Bluebolt Ltd.  All rights reserved.
+#    (c)2012 Bluebolt Ltd.  All rights reserved.
 #    
 #    Redistribution and use in source and binary forms, with or without
 #    modification, are permitted provided that the following conditions are
@@ -28,56 +28,63 @@
 #    
 #    Author:Ashley Retallack - ashley-r@blue-bolt.com
 #    Created:2011-06-07
+#    Version:
 
 
-''' Main gridengine class '''
+class ComplexType(object):
+        '''
+            Enum for the type of compex,
+
+            @ INT :- integar
+        '''
+        INT = 0
+        STRING = 1
+        TIME = 3
+        MEMORY = 4
+        BOOL = 5
+        CSTRING = 6
+        HOST = 7
+        DOUBLE = 8
+        RESTRING = 9
 
 
-from version import *
-from Exceptions import *
+class Complex(object):
+    """docstring for Complex"""
+    def __init__(self, name, default=0):
+        super(Complex, name, default).__init__()
+        self.name = name
+        self.shortcut = ''
+        self.type = ComplexType.INT
+        self.value = None
+        self.relation = '=='  # options are '==','>=','>','<','<=','!=','EXCL'
+        self.requestable = 'YES'  # options are 'YES','NO' or 'FORCED'
+        self.consumable = 'NO'  # options are 'YES','NO', or 'JOB'
+        self.default = default
+        self.urgency = 0
 
+        self._getData()
 
-def getRoot():
-	import os
-	if 'SGE_ROOT' in os.environ.keys():
+    def getData(self):
+        """
+        Retreve data from Grid Engine and fill in the attribute
+        of this instance based on the name given
+        """
+        pass
 
-		if os.path.isdir(os.environ['SGE_ROOT']):
-			_SGE_ROOT=os.environ['SGE_ROOT']
-			# detect if  this directory has bin/qstat in it
-			arch_bin = _SGE_ROOT+'/util/arch'
-			if os.path.isfile(arch_bin):
-				return _SGE_ROOT
-			else:
-				raise GridError('Invalid SGE_ROOT path given, please check your grid engine installation')
-		return 
-	else:
-		raise GridError('No Grid Enigine Root can be found, plase make sure the environment SGE_ROOT has been set')
+    def create(self):
+        """create this instance in Grid Engine"""
+        pass
 
-SGE_ROOT=getRoot()
+    def delete(self):
+        """delete this instance from Grid Engine"""
+        pass
 
-def mkfolder(path):
-	import os as _os
-	import errno as _errno
-	# create path with folders
-	try:
-		_os.makedirs(path)
-	except OSError as exc: # Python >2.5
-		if exc.errno == _errno.EEXIST: #if folder already exists just pass
-			pass
-		else: raise
+    def save(self):
+        """save changes to Grid Engine"""
+        pass
 
-# Now import the sub-modules and classes ..
+    def __repr__(self):
+        return "Complex({})".format(self.__str__())
 
-from Job import * 
-from Task import *
-from Host import * 
-from Queue import * 
-from Render import *
-from Utils import *
-from User import *
-from Database import *
-from config_gridengine import *
-from sql_gridengine import *
-
-# __all__ = ['Job','Task','Host','Queue','Render','Utils']
-
+    def __str__(self):
+        return self.name

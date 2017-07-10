@@ -48,8 +48,8 @@
      contact-sheet
 """
 
-from gridengine import Job,JobType,mkfolder,Queue
-from gridengine.Exceptions import *
+from .. import Job, JobType, mkfolder, Queue
+from ..Exceptions import *
 
 # lets import the types of job this one relies upon
 import MayaBatch

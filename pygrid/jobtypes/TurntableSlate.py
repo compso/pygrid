@@ -34,13 +34,13 @@
 #******************************************************************************
 
 
-from gridengine.Job import Job
-from gridengine.Job import mkfolder
-from gridengine.Queue import Queue
-from gridengine.Utils import copyFile
+from ..Job import Job
+from ..Job import mkfolder
+from ..Queue import Queue
+from ..Utils import copyFile
 
-from gridengine.Render.Arnold import KickJob, MayaAssGenJob
-from gridengine.Render.Nuke import NukeRenderJob
+from ..Render.Arnold import KickJob, MayaAssGenJob
+from ..Render.Nuke import NukeRenderJob
 
 
 from Command import CommandJob

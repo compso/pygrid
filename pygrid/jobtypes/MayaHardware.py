@@ -1,5 +1,5 @@
 
-#    (c)2012 Bluebolt Ltd.  All rights reserved.
+#    (c)2011 Bluebolt Ltd.  All rights reserved.
 #    
 #    Redistribution and use in source and binary forms, with or without
 #    modification, are permitted provided that the following conditions are
@@ -28,62 +28,36 @@
 #    
 #    Author:Ashley Retallack - ashley-r@blue-bolt.com
 #    Created:2011-06-07
-#    Version:
+#    Version:0.9.2
 
 
-class ComplexType(object):
+'''
+	Main maya hardware class
 
-        '''
-            Enum for the type of compex, 
+	has one job:
+	 
+	 render_maya -- do the render
 
-            @ INT :- integar
-        '''
-        INT = 0
-        STRING = 1
-        TIME = 3
-        MEMORY = 4
-        BOOL = 5
-        CSTRING = 6
-        HOST = 7
-        DOUBLE = 8
-        RESTRING = 9
+''' 
+from ..Job import Job,JobType
 
-class Complex(object):
-	"""docstring for Complex"""
-	def __init__(self, name,default=0):
-		super(Complex,name,default).__init__()
-		self.name = name
-		self.shortcut = ''
-		self.type = ComplexType.INT
-		self.value = None
-		self.relation = '==' # options are '==','>=','>','<','<=','!=','EXCL'
-		self.requestable = 'YES' # options are 'YES','NO' or 'FORCED'
-		self.consumable = 'NO' # options are 'YES','NO', ot 'JOB'
-		self.default = default
-		self.urgency = 0
-
-		self._getData()
-
-	def getData(self):
-		"""Retreve data from Grid Engine and fill in the attribute of this instance based on the name given"""
-		pass
-
-	def create(self):
-		"""create this instance in Grid Engine"""
-		pass
-
-	def delete(self):
-		"""delete this instance from Grid Engine"""
-		pass
-
-	def save(self):
-		"""save changes to Grid Engine"""
-		pass
-
-	def __repr__(self):
-		return "Complex(%s)"%self.__str__()
-
-	def __str__(self):
-		return self.name
-
+class mayaHWJob(Job):
+	''' 3delight instance of gridengine submitting class '''
+	
+	def __init__(self, name='jobname', priority=1024):
+		self.name=name
+		self.date=''
+		self.jid=None
+		self.priority=priority
+		self.type=''
+		self.script=''
+		self.email=False
+		self.paused=False	
+		self.maxnodes=0		
+		self.hosts=[]	
+		self.start=1001
+		self.end=1001
+		self.step=1001 
 		
+ 
+ 

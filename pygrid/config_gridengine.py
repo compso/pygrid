@@ -35,13 +35,13 @@ Version:0.9.2
 GRID Engine configuation module
 
 provides interfaces for :
-	
-	queues
-	hosts
-	complexes/consumables
-	users
-	parallel environments
-	
+    
+    queues
+    hosts
+    complexes/consumables
+    users
+    parallel environments
+    
 
 '''
 
@@ -50,22 +50,21 @@ import os as _os
 import ConfigParser as _CfgParser
 import io as _io
 
-#get the config.ini if it exists
+CONFIG_FILE = 'config.ini'
 
-	
+    
 def get_config():
-	pwd = _os.path.dirname(__file__)	
-	cfg_fpath =  _os.path.join(pwd,'config.ini') 
-	try:
-		cfg_file = open(cfg_fpath)
-		cfg=cfg_file.read()
-		cfg_file.close()
-	except IOError as (errno, strerror):
-		print "ERROR : no config.ini file found in pygrid base directory (%s)"%(cfg_fpath)
-		print "I/O error({0}): {1}".format(errno, strerror)
-		
-	config = _CfgParser.RawConfigParser()
-	config.readfp(_io.BytesIO(cfg))
-		
-	return config
-	
+    pwd = _os.path.dirname(__file__)
+    cfg_fpath = _os.path.join(pwd, CONFIG_FILE)
+    try:
+        cfg_file = open(cfg_fpath)
+        cfg = cfg_file.read()
+        cfg_file.close()
+    except IOError as (errno, strerror):
+        print "ERROR : no {} file found in pygrid base directory ({})".format(CONFIG_FILE, pwd)
+        print "I/O error({0}): {1}".format(errno, strerror)
+        
+    config = _CfgParser.RawConfigParser()
+    config.readfp(_io.BytesIO(cfg))
+        
+    return config

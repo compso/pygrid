@@ -28,36 +28,53 @@
 #    
 #    Author:Ashley Retallack - ashley-r@blue-bolt.com
 #    Created:2011-06-07
-#    Version:0.9.2
+#    Version:
+
+from .Exceptions import *
+from .User import User
 
 
-'''
-	Main maya hardware class
+class Project(object):
+    
+    def __init__(self, name='test', users=[], xusers=[]):
+        self.name = name
+        self._users = []
+        self.users = users
+        self._xusers = []
+        self.xusers = xusers
 
-	has one job:
-	 
-	 render_maya -- do the render
+    def users():
+        doc = "The users property."
+        doc += "Give this a list of User objects for those users who can submit to this project"
 
-''' 
-from gridengine.Job import Job,JobType
+        def fget(self):
+            return self._users
 
-class mayaHWJob(Job):
-	''' 3delight instance of gridengine submitting class '''
-	
-	def __init__(self, name='jobname', priority=1024):
-		self.name=name
-		self.date=''
-		self.jid=None
-		self.priority=priority
-		self.type=''
-		self.script=''
-		self.email=False
-		self.paused=False	
-		self.maxnodes=0		
-		self.hosts=[]	
-		self.start=1001
-		self.end=1001
-		self.step=1001 
-		
- 
- 
+        def fset(self, value):
+            if isinstance(value, list) and all(isinstance(x, User) for x in value):
+                self._users = value
+            else:
+                raise TypeError("Project.users only accepts lists of type User")
+        return locals()
+    users = property(**users())
+
+    def xusers():
+        doc = "The xusers property."
+        doc += "Give this a list of User objects for those users who can not submit to this project"
+
+        def fget(self):
+            return self._xusers
+
+        def fset(self, value):
+            if isinstance(value, list) and all(isinstance(x, User) for x in value):
+                self._xusers = value
+            else:
+                raise TypeError("Project.xusers only accepts lists of type User")
+        return locals()
+    users = property(**users())
+
+    def __repr__(self):
+        return 'Project( {} )'.format(str(vars(self).values()))
+
+    def __str__(self):
+        return str(vars(self))

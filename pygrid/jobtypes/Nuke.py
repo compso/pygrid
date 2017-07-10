@@ -35,12 +35,12 @@
     Main nuke class
 
 ''' 
-from gridengine.Job import Job,JobType
-from gridengine.Job import mkfolder
-from gridengine.Queue import Queue
-from gridengine.Utils import copyFile
+from ..Job import Job,JobType
+from ..Job import mkfolder
+from ..Queue import Queue
+from ..Utils import copyFile
 
-from gridengine.Exceptions import *
+from ..Exceptions import *
 
 import Command
 

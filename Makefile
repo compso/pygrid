@@ -23,8 +23,7 @@ $(BUILDDIR):
 $(DOCSDIR):
 	mkdir -p $@
 
-TESTS = tests/test_3delight.py \
-		tests/test_command.py \
+TESTS = tests/test_command.py \
 		tests/test_houdini.py \
 		tests/test_mantra.py \
 		tests/test_maya_batch.py \

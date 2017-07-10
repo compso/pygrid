@@ -39,51 +39,66 @@
 
 '''
 
-from gridengine.Job import Job,JobType,mkfolder
-from gridengine.Queue import Queue
-from gridengine.Utils import copyFile
+from ..Job import Job,JobType,mkfolder
+from ..Queue import Queue
+from ..Utils import copyFile
 
 import os as _os
 
-class MayaBatchJob(Job):
-    ''' Main Generic Maya Batch Job, use this one to do sub instances of maya Batch processes '''
+class MayaRenderJob(Job):
+    ''' Main Generic Maya Render Job, use this one to do sub instances of maya Render jobs '''
     
     def __init__(self,jid=None):
-        super(MayaBatchJob, self).__init__(jid)    
-        self.name = 'Maya_Batch_job' 
-        self.label = 'MayaBatchJob'
+        super(MayaRenderJob, self).__init__(jid)    
+        self.name = 'Maya_render_job'  
+        self.label = 'maya_render_job'
         self.type = JobType.ARRAY
         self.queue = Queue('3d.q')
         self.cpus = 2
-        self.scenefile = 'invalid_scene.mb'
-        self.maya_version = '2012'
-        self.render_cmd = '${SOFTWARE}/wrappers/maya'
+        self.scenefile = ''
+        self.resources = {'mem_free':'4G','maya':'1'}
         self.publish = True
+        self.maya_version = '2014'
+        self.render_cmd = 'Render'
         self.args = ''
+        self.renderer = 'sw' #set the default renderer to mayaSoftware
         self.camera = 'perspShape'
         self.layer = 'defaultRenderLayer'
-        self.render_pass = 'BEAUTY_PASS'
-        self.version=1
-        self.res={'width':'1920','height':'1080'}
-        self.slices=0
-    
+        self.render_pass = 'beauty'
+        self.version=None
+        self.res={'width':1920,'height':1080}
+        self.slices=0    
+
     def setJobName(self):
         ''' Generate a time staped name for this Job '''
         dt=self.dt.strftime('%Y%m%d%H%M%S')
-        self.name=_os.path.basename(_os.path.splitext(self.scenefile)[0])+'.'+str(dt)
-        self.prefix=_os.path.basename(_os.path.splitext(self.scenefile)[0])
+        self.name=_os.path.basename(_os.path.splitext(self.scenefile)[0])+"_"+self.layer+"_"+self.render_pass+'.'+str(dt)
+        self.prefix=_os.path.basename(_os.path.splitext(self.scenefile)[0])+"_"+self.layer+"_"+self.render_pass
         
+    def setVersion(self):
+        ''' check and set the version based on the render_tmp location '''
+        
+        if self.paths.has_key('out_dir'):
+            
+            if not self.version: # if the version has not been set detect it
+                self.version = 1
+
+                print self.paths['out_dir']
+                        
+                if _os.path.isdir(self.paths['out_dir']):
+                    dirlist=_os.listdir(self.paths['out_dir'])
+                    dirlist.sort()
+                    for d in  dirlist:
+                        if d.startswith("v"):
+                            self.version = int(d.strip('v'))+1
+    
     def publishScene(self):
         ''' make a copy of the input maya file in the working directory '''    
-    
-        mb_dir = '%s/mb' % self.wd
+            
+        mkfolder(self.paths["mb_path"])
         
-        mkfolder(mb_dir)
-        
-        self.scenefile = copyFile(self.scenefile,mb_dir)
+        self.scenefile = copyFile(self.scenefile,self.paths["mb_path"])
 
-        return self.scenefile
-        
     def createJobScript(self):
         ''' Generate the bash script  for rendering '''
                 
@@ -94,24 +109,32 @@ class MayaBatchJob(Job):
         
         if self.publish:
             self.publishScene()
-        
+
         # settings #
+
+        img_name = "%s_\<RenderLayer\>_lnh_v%03d" % (self.envs['WORKSPACE'],self.version)
         
         settings={'scenefile':self.scenefile,
         'wd':self.wd,
         'maya':self.maya_version,
         'camera':self.camera,
         'render_cmd':self.render_cmd,
+        'renderer':self.renderer,
         'mayaproject':'%s/user/%s/maya' % (self.envs['WORKSPACE_PATH'],self.envs['USER']),
-        'args':self.args,
+        'image_path':self.paths['img_path'],
+        'image_name':img_name,
+        'renderlayer':self.layer,
         'slice':self.slices>1,
         'num_slices':self.slices,
-        'CPUS':self.cpus,
         'WORKSPACE_PATH':self.envs['WORKSPACE_PATH'],
+        'CPUS':self.cpus,
+        'args':self.args,
+        'width':self.res['width'],
+        'height':self.res['height'],
         'task_header':' '.join((self.name,self.date,self.scenefile))}
     
         settings['envs'] = ''
-        # simple loop over the envs in the self.envs dictionary to add any envs to the render script
+        # simple loop over the envs in the self.envs dictionary to add any extra/custom envs to the render script
         for e in self.envs.keys():
             settings['envs'] += 'export %s=%s;\n' % (e,self.envs[e])
                 
@@ -147,26 +170,23 @@ export SLICE_PADDED=`printf "%%02d" $SGE_TASK_ID`
                 
     
         #Generate preflight BASH script
-        render_script = open(self.paths['scripts_path'] + "/" + self.label + ".%s"%self.dt.strftime('%Y%m%d%H%M%S')  + ".sh", 'w')
+        render_script = open(self.paths['scripts_path'] + "/" + self.label + ".%s"%self.dt.strftime('%Y%m%d%H%M%S') + ".sh", 'w')
         
         render_script.write('''#!/bin/bash
         
 #
-# MAYA Batch job - %(task_header)s
+# %(task_header)s
 #    
 
 
 #$ -S /bin/bash
 #$ -j y
-#$ -l maya=1
 
 umask 0002
 
 #set workspace
 
-source ${SOFTWARE}/bluebolt/config/workspace.env
-
-eval workspace -no-hi %(WORKSPACE_PATH)s
+source ${SOFTWARE}/bluebolt/envset/workspace %(WORKSPACE_PATH)s
 
 export MAYA_APP_DIR=${TMPDIR}/maya;
 export MAYA_VERSION=%(maya)s;
@@ -190,20 +210,20 @@ unset SLICE_PADDED
 export START=$s
 export END=$e
 
-function this_task(){
-
-cmd="%(render_cmd)s -batch -proj %(mayaproject)s -file %(scenefile)s %(args)s"
+cmd="%(render_cmd)s -r %(renderer)s -proj %(mayaproject)s -rl %(renderlayer)s -n $NSLOTS -s $s -e $e -x %(width)s -y %(height)s -rd %(image_path)s -im %(image_name)s -fnc name.#.ext -cam %(camera)s %(args)s %(scenefile)s;"
 echo $cmd
 #Run it
-time $cmd
+function this_task(){
+
+time %(render_cmd)s -r %(renderer)s -proj %(mayaproject)s -rl %(renderlayer)s -n $NSLOTS -s $s -e $e -x %(width)s -y %(height)s -rd %(image_path)s -im %(image_name)s -fnc name.#.ext -cam %(camera)s %(args)s %(scenefile)s;
 
 exitstatus=$?
 
 if [ $exitstatus != 0 ];then
-return 100
+exit 100
 fi
 
-return $exitstatus
+exit $exitstatus
 
 }
 
@@ -217,45 +237,77 @@ eval this_task
         
         return render_script
     
+    def setPaths(self):
+        ''' Set the paths for pantry based resources '''
         
+        #
+        # Changed for the renders to go to the user directory
+        #
+
+        if not 'out_dir' in self.paths : self.paths['out_dir']="%s/renders/%s/%s/" % (self.envs['USER_PATH'],self.layer,self.render_pass)
         
+        # everything below relys on the version being set
+        self.setVersion()
+
+        self.paths['pantry'] = _os.path.join(self.paths['out_dir'],"v%03d"%self.version,'.pantry')
+
+        self.setWD(self.paths['pantry'])
+
+        mkfolder(self.wd)
+                
+        self.paths['mb_path'] = '%s/mb' % self.wd
+        
+        self.paths['scripts_path'] = '%s/scripts' % self.wd
+        
+        if not 'img_path' in self.paths : self.paths['img_path'] = "%s/v%03d/%s" % (str(self.paths['out_dir']),int(self.version),'x'.join( map(str, self.res.values()) ) )
+        
+    def setOutDir(self,out_dir):
+        """
+        Set the output directory for the renders , this will reset the version to None and autoset up the child folders
+        """
+
+        self.paths['out_dir']=out_dir
+        self.version=None
+        self.setPaths()
+
+    def setOutImagePath(self,out_image_path):
+
+        self.paths['img_path'] = out_image_path
+
     def makeJobs(self):
-        """ Generate the child Jobs for submission and assign thier dependencies  """
-              
+
         # set the job name
         
         self.setJobName()
+
+        self.setPaths()
         
         fldr_args={'WORKSPACE_PATH':self.envs['WORKSPACE_PATH'],
         'USER':self.envs['USER'],
         'jobname':self.name,
         'label':self.label}
         
-        self.setWD("%(WORKSPACE_PATH)s/user/%(USER)s/%(label)s/grid_jobs/%(jobname)s" % fldr_args) # set the working directory for this job, to the users dir + 'render'
-                             
-                             
         self.createJobScript()
-    
-        return self
-    
+
     def output(self):
-        ''' Submit this job to gridengine '''
+        ''' generate job infomation output '''
         
+        env_list = list()
+        for k in self.envs: env_list.append( "%s=%s" % (k,self.envs[k]) )
+                
         self.extra_data={
-            'maya_scene':self.scenefile,
-            'maya_version':self.maya_version
-        }
-        
-        
-        output = "submitting job...: %s \n" % ('.'.join([self.label,self.name]))
+                        'scenefile':self.scenefile,
+                        'maya_version':self.maya_version,
+                        'frames':self.frames,
+                        'env': ';'.join(env_list),
+                        'layer':self.layer,
+                        'pass':self.render_pass                 
+                        }
+                
+        output = "submitting job...: %s \n" % self.name
+        output = "version..........: %d \n" % self.version
+        output+= "command..........: %s \n" % self.cmd
         output+= "working dir......: %s \n" % self.wd
-        output+= "Maya File........: %s \n" % self.scenefile
-        output+= "Maya Version.....: %s \n" % self.maya_version
-        output+= "step.............: %d \n" % int(self.step)
-        output+= "cpus.............: %d \n" % int(self.cpus)
-        output+= "queue............: %s \n" % self.queue.name
         output+= "send disabled....: %s \n" % str(self.paused)
-        output+= "frames...........: %s \n" % self.frames
                 
         return output
-        
