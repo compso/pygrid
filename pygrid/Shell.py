@@ -3,6 +3,7 @@ from subprocess import Popen, PIPE
 import sys
 import os
 import logging
+import re
 import xml.parsers.expat
 import xml.etree.ElementTree as ET
 from copy import copy, deepcopy
@@ -64,6 +65,7 @@ class AbstractCommand(object):
             self.shell = Shell()
         else:
             self.shell = shell
+        self.args = []
 
         self.gdi = None  # pointer to GDI interface instance (not implimented yet)
         self.commad = "ls"
@@ -257,35 +259,20 @@ class QConfCommand(AbstractCommand):
         pass
 
 
-class QModCommand(AbstractCommand):
-    """Wrapper class for qmod command line"""
-    def __init__(self, arg):
-        super(QModCommand, self).__init__()
-        self.arg = arg
-        
-    def parseJobList(self, arg):
-        pass
-           
-    def parseJobWCQueueList(self, arg):
-        pass
-           
-    def parseWCQueueList(self, arg):
-        pass
-
-
-class QHostCommand(AbstractCommand):
-    """Wrapper command for qgost command line program"""
-    def __init__(self, **args):
-        super(QHostCommand, self).__init__()
-        self.args = args
-
-    def function(self):
-        pass
-
-
 def qstatus(stat_id):
 
     return stat_id
+
+
+def str_to_digit(text):
+
+    if text.isdigit():
+        if re.match(r'^\d+\.\d+$', text):
+            return  float(text)
+        else:
+            return int(text)
+
+    return text
 
 
 class QXmlStackManager(object):
@@ -308,7 +295,7 @@ class QXmlStackManager(object):
         self.__current_obj = DefaultDict(None)
 
     def parse(self, data):
-
+        self._out_list = []
         root = ET.fromstring(data)
         # self._parser.Parse(data)
 
@@ -337,12 +324,16 @@ class QXmlStackManager(object):
             if tag in attr_map:
                 tag_map = attr_map[tag]
                 d_name = tag_map.get('name')
+                if 'name_attr' in tag_map:
+                    name_attr = tag_map['name_attr']
+                    if name_attr in attr:
+                        d_name = attr[name_attr]
                 d_type = tag_map.get('type')
-                if d_name in __current_obj:
+                if d_name in __current_obj and d_type is not 'raw_list':
                     _out_list.append(__current_obj.copy())
                     __current_obj.clear()
                 if d_name and tag_map.get('use_data', True):
-                    if d_type is not list and d_type not in ['raw', 'raw_list']:
+                    if d_type not in [list, 'raw', 'raw_list']:
                         __current_obj[d_name] = d_type(data)
                     elif d_type is list:
                         if d_name not in __current_obj:
@@ -353,11 +344,13 @@ class QXmlStackManager(object):
                             if c.tag in tag_map.get('children', {}):
                                 c_dict = tag_map['children'][c.tag]
                                 c_name = c_dict['name']
-                                c_type = c_dict['type']
-
+                                if 'name' in c.attrib:
+                                    c_name = c.attrib['name']
+                                c_type = c_dict.get('type', str)
                                 __current_obj[d_name][c_name] = c_type(c.text)
                     elif d_type is 'raw_list':
-                        __current_obj[d_name] = []
+                        if not __current_obj[d_name]:
+                            __current_obj[d_name] = []
                         result = self.populate_data(e, tag_map.get('children', {}))
                         if len(result):
                             __current_obj[d_name] += result
@@ -368,7 +361,7 @@ class QXmlStackManager(object):
                         if a in attr:
                             a_name = d.get('name')
                             a_type = d.get('type')
-                            __current_obj[a_name] = a_type(attr[a])
+                        __current_obj[a_name] = a_type(attr[a])
         _out_list.append(__current_obj.copy())
 
         return _out_list
@@ -400,6 +393,9 @@ class QStatCommand(AbstractCommand):
                                     'JB_job_number': {'name': 'jobid', 'type': int},
                                     'JB_name': {'name': 'name', 'type': str},
                                     'JB_owner': {'name': 'owner', 'type': str},
+
+                                    'JB_submission_time': {'name': 'submission_time', 'type': str},
+                                    'JAT_start_time': {'name': 'start_time', 'type': str},
                                     'tasks': {'name': 'tasks', 'type': str},
                                     'queue_name': {'name': 'running_queue', 'type': str},
                                     'hard_req_queue': {'name': 'requested_queue', 'type': str},
@@ -409,9 +405,9 @@ class QStatCommand(AbstractCommand):
         self._job_info_stack.attr_map = {'JB_merge_stderr': {'name': 'merge_err', 'type': bool},
                                          'JB_job_number': {'name': 'jobid', 'type': int},
                                          'JB_script_file': {'name': 'script_file', 'type': str},
-                                         'JB_name': {'name': 'name', 'type': str},
+                                         'JB_job_name': {'name': 'name', 'type': str},
                                          'JB_owner': {'name': 'owner', 'type': str},
-                                         'JB_cwd': {'name': 'owner', 'type': str},
+                                         'JB_cwd': {'name': 'cwd', 'type': str},
                                          'JB_pe': {'name': 'pe', 'type': str},
                                          'JB_pe_range': {'name': 'pe_range', 'type': 'raw',
                                                          'children': {'RN_min': {'name': 'min', 'type': int},
@@ -459,9 +455,145 @@ class QStatCommand(AbstractCommand):
         self.run(cmd_args)
 
         # sanitise the xml so no tags have spaces
+        # tags_spaces = re.findall(r'<([\[a-zA-Z0-9+\s]*)>', '<mail list>')
         out = self.out.replace('mail list', 'mail_list')
+        out = out.replace('<>', '<empty>')
+        out = out.replace('</>', '</empty>')
 
         return self._job_info_stack.parse(out)
 
-    def function(self):
-        pass
+
+class QHostInfo(dict):
+    '''data structure to hold SGE job information'''
+    def __str__(self):
+        return ''.join(['{}: {}\n'.format(x, y) for x, y in self.items()])
+
+
+class QHostCommand(AbstractCommand):
+    """Wrapper command for qgost command line program"""
+    def __init__(self, *args):
+        super(QHostCommand, self).__init__()
+        self.command = 'qhost'
+        self.args = ['-xml']
+        self.args += args
+
+        self._host_stack = QXmlStackManager('host', QHostInfo)
+        self._host_stack.attr_map = {'host': {'attrs': {'name': {'name': 'hostname', 'type': str}}},
+                                     'hostvalue': {'name': 'hostvalue', 'name_attr': 'name', 'type': str_to_digit},
+                                     'job': {'name': 'jobs', 'type': 'raw_list',
+                                             'children': {'jobvalue': {'name': 'jobvalue', 'name_attr': 'name', 'type': str_to_digit, 
+                                                                              'attrs': {'jobid': {'name': 'jobid', 'type': int}}
+                                                                              }}}
+                                    }
+
+    def listHosts(self, show_jobs=False):
+        cmd_args = copy(self.args)
+        cmd_args.append('-cb')
+
+        if show_jobs:
+            cmd_args.append('-j')
+
+        self.run(cmd_args)
+
+        return self._host_stack.parse(self.out)
+
+    def getHostInfo(self, hostname, show_jobs=False):
+        cmd_args = copy(self.args)
+        cmd_args.append('-cb')
+        cmd_args += ['-h', hostname]
+        if show_jobs:
+            cmd_args.append('-j')
+
+        self.run(cmd_args)
+
+        return self._host_stack.parse(self.out)
+
+
+class QModCommand(AbstractCommand):
+    """Wrapper class for qmod command line"""
+    def __init__(self, *args):
+        super(QModCommand, self).__init__()
+        self.command = 'qmod'
+        self.args += args
+
+    def __run_args(self, o_list, arg, force=False):
+        cmd_args = copy(self.args)
+        if force:
+            cmd_args.append('-f')
+        cmd_args.append(arg)
+        cmd_args += o_list
+
+        self.run(cmd_args)
+
+        return self.out
+
+    def clear_error(self, o_list, force=False):
+        return self.__run_args(o_list, '-c', force)
+
+    def reschedule(self, o_list, force=False):
+        return self.__run_args(o_list, '-r', force)
+
+    def suspend(self, o_list, force=False):
+        return self.__run_args(o_list, '-s', force)
+
+    def unsuspend(self, o_list, force=False):
+        return self.__run_args(o_list, '-us', force)
+
+    def disable_queue(self, queue_list, force=False):
+        if not isinstance(queue_list, list):
+            queue_list = [queue_list]
+
+        return self.__run_args(queue_list, '-d', force)
+
+    def enable_queue(self, queue_list, force=False):
+        if not isinstance(queue_list, list):
+            queue_list = [queue_list]
+
+        return self.__run_args(queue_list, '-e', force)
+
+
+class QDelCommand(AbstractCommand):
+    """Wrapper class for qdel command line"""
+    def __init__(self, *args):
+        super(QDelCommand, self).__init__()
+        self.command = 'qdel'
+        self.args += args
+
+    def __run_args(self, o_list, arg='', force=False):
+        cmd_args = copy(self.args)
+        if force:
+            cmd_args.append('-f')
+        if arg:
+            cmd_args.append(arg)
+        cmd_args += o_list
+
+        self.run(cmd_args)
+
+        return self.out
+
+    def delete_user_jobs(self, username, force=False):
+        return self.__run_args([username], '-u', force=force)
+
+    def delete_jobs(self, jobids, force=False):
+        return self.__run_args([str(j) for j in jobids], force=force)
+
+
+class QAcctCommand(AbstractCommand):
+    """Wrapper class for qdel command line"""
+    def __init__(self, *args):
+        super(QDelCommand, self).__init__()
+        self.command = 'qacct'
+        self.args += args
+
+    def __run_args(self, o_list, arg=''):
+        cmd_args = copy(self.args)
+        if arg:
+            cmd_args.append(arg)
+        cmd_args += o_list
+
+        self.run(cmd_args)
+
+        return self.out
+
+    def get_finished_tasks(self, jobid):
+        return self.__run_args(str(jobid), '-j')
