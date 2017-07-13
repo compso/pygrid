@@ -384,7 +384,7 @@ class QStatCommand(AbstractCommand):
     def __init__(self, *args):
         super(QStatCommand, self).__init__()
         self.command = 'qstat'
-        self.args = ['-r', '-xml']
+        self.args = ['-r', '-pri', '-xml']
         self.args += args
 
         self._job_stack = QXmlStackManager('job_list', QStatJob)
@@ -393,7 +393,7 @@ class QStatCommand(AbstractCommand):
                                     'JB_job_number': {'name': 'jobid', 'type': int},
                                     'JB_name': {'name': 'name', 'type': str},
                                     'JB_owner': {'name': 'owner', 'type': str},
-
+                                    'JB_priority': {'name': 'priority', 'type': int},
                                     'JB_submission_time': {'name': 'submission_time', 'type': str},
                                     'JAT_start_time': {'name': 'start_time', 'type': str},
                                     'tasks': {'name': 'tasks', 'type': str},
@@ -514,6 +514,7 @@ class QModCommand(AbstractCommand):
     def __init__(self, *args):
         super(QModCommand, self).__init__()
         self.command = 'qmod'
+        self.args = []
         self.args += args
 
     def __run_args(self, o_list, arg, force=False):
@@ -521,7 +522,7 @@ class QModCommand(AbstractCommand):
         if force:
             cmd_args.append('-f')
         cmd_args.append(arg)
-        cmd_args += o_list
+        cmd_args += [str(o) for o in o_list]
 
         self.run(cmd_args)
 
@@ -550,6 +551,28 @@ class QModCommand(AbstractCommand):
             queue_list = [queue_list]
 
         return self.__run_args(queue_list, '-e', force)
+
+
+class QAlterCommand(AbstractCommand):
+    """Wrapper class for qmod command line"""
+    def __init__(self, *args):
+        super(QAlterCommand, self).__init__()
+        self.command = 'qalter'
+        self.args += args
+
+    def __run_args(self, o_list, args, force=False):
+        cmd_args = copy(self.args)
+        if force:
+            cmd_args.append('-f')
+        cmd_args += args
+        cmd_args += [str(o) for o in o_list]
+        print cmd_args
+        self.run(cmd_args)
+
+        return self.out
+
+    def set_priority(self, priority, o_list, force=False):
+        return self.__run_args(o_list, ['-p', str(priority)], force)
 
 
 class QDelCommand(AbstractCommand):
