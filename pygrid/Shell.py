@@ -329,7 +329,7 @@ class QXmlStackManager(object):
                     if name_attr in attr:
                         d_name = attr[name_attr]
                 d_type = tag_map.get('type')
-                if d_name in __current_obj and d_type is not 'raw_list':
+                if d_name in __current_obj and d_type not in ['raw_list', list]:
                     _out_list.append(__current_obj.copy())
                     __current_obj.clear()
                 if d_name and tag_map.get('use_data', True):
@@ -338,6 +338,7 @@ class QXmlStackManager(object):
                     elif d_type is list:
                         if d_name not in __current_obj:
                             __current_obj[d_name] = []
+                        __current_obj[d_name].append(data)
                     elif d_type is 'raw':
                         __current_obj[d_name] = {}
                         for c in e.iter():
@@ -398,7 +399,7 @@ class QStatCommand(AbstractCommand):
                                     'JAT_start_time': {'name': 'start_time', 'type': str},
                                     'tasks': {'name': 'tasks', 'type': str},
                                     'queue_name': {'name': 'running_queue', 'type': str},
-                                    'hard_req_queue': {'name': 'requested_queue', 'type': str},
+                                    'hard_req_queue': {'name': 'requested_queue', 'type': list},
                                     'ad_predecessor_jobs_req': {'name': 'dependencies', 'type': list}
                                     }
         self._job_info_stack = QXmlStackManager('djob_info', QStatJobInfo)
